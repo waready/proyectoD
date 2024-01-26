@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marcadores en OpenStreetMap</title>
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+<body>
+  <div id="map" style="height: 800px;"></div>
+  <h1>Ubicación Actual</h1>
+  <p id="location">Esperando ubicación...</p>
+
+  <script src="https://cdn.socket.io/4.1.3/socket.io.min.js"></script>
+  <script>
+    const socket = io('http://localhost:3000');
+    const map = L.map('map').setView([-15.8402, -70.0219], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  
+    // Objeto para almacenar marcadores de clientes conectados
+    const clientMarkers = {};
+  
+    // Función para crear o actualizar marcadores
+    function updateClientMarker(clientId, position) {
+
+    const iconUrl = 'https://c0.klipartz.com/pngpicture/702/495/gratis-png-iconos-del-ordenador-de-la-entrega-del-umbral.png'; // Ruta a tu imagen de icono
+
+      // Crear o actualizar el ícono
+      const customIcon = L.icon({
+        iconUrl: iconUrl,
+        iconSize: [32, 32], // Tamaño del icono
+        iconAnchor: [16, 32], // Punto de anclaje del icono
+        popupAnchor: [0, -32] // Punto de anclaje del popup
+      });
+
+      if (!clientMarkers[clientId]) {
+        // Crear un nuevo marcador si no existe
+        clientMarkers[clientId] = L.marker(position, {icon:customIcon}).addTo(map);
+      } else {
+        // Actualizar la posición del marcador existente
+        clientMarkers[clientId].setLatLng(position);
+      }
+    }
+  
+    // Escuchar actualizaciones de posición de la moto desde el servidor
+    socket.on('updateMotoPosition', ({ clientId, position }) => {
+      console.log('Cambio en la posición de la moto', position);
+  
+      // Actualizar el marcador correspondiente al cliente
+      updateClientMarker(clientId, position);
+    });
+  
+    // Escuchar el mensaje de desconexión
+    socket.on('clientDisconnected', ({ clientId }) => {
+        console.log(`Cliente desconectado: ${clientId}`);
+
+        // Eliminar el marcador asociado al cliente desconectado
+        if (clientMarkers[clientId]) {
+            map.removeLayer(clientMarkers[clientId]);
+            delete clientMarkers[clientId];
+        }
+    })
+
+    // Simular la actualización de posición de la moto (puedes reemplazar esto con eventos del usuario)
+    setInterval(() => {
+      const newPosition = {
+        lat: -15.8402 + Math.random() * 0.005,
+        lng: -70.0219 + Math.random() * 0.003
+      };
+      socket.emit('motoPosition', newPosition);
+      console.log("Se envió", newPosition);
+    }, 2000);
+
+
+
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition, showError);
+      } else {
+        document.getElementById("location").innerHTML = "Geolocalización no es soportada por este navegador.";
+      }
+    }
+
+    function showPosition(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      document.getElementById("location").innerHTML = `Latitud: ${latitude}, Longitud: ${longitude}`;
+    }
+
+    function showError(error) {
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          document.getElementById("location").innerHTML = "Acceso denegado a la ubicación.";
+          break;
+        case error.POSITION_UNAVAILABLE:
+          document.getElementById("location").innerHTML = "Información de ubicación no disponible.";
+          break;
+        case error.TIMEOUT:
+          document.getElementById("location").innerHTML = "Se ha excedido el tiempo para obtener la ubicación.";
+          break;
+        case error.UNKNOWN_ERROR:
+          document.getElementById("location").innerHTML = "Error desconocido al obtener la ubicación.";
+          break;
+      }
+    }
+
+    // Obtener la ubicación al cargar la página
+    getLocation();
+
+
+  </script>
+</body>
+</html>
